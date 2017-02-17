@@ -8,6 +8,7 @@ import java.io.ObjectOutputStream;
 import java.net.DatagramPacket;
 import java.net.InetAddress;
 import java.net.MulticastSocket;
+import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.util.Observable;
 
@@ -18,13 +19,10 @@ public class Comunicacion extends Observable implements Runnable {
 	private final String GROUP_ADDRESS = "228.5.6.7";
 	private boolean life;
 	private boolean identificado;
-	private MensajeID msg;
 	private int id;
 
 	public Comunicacion() {
 		life = true;
-		id = 0;
-		identificado = false;
 
 		try {
 			mSocket = new MulticastSocket(PORT);
@@ -34,66 +32,71 @@ public class Comunicacion extends Observable implements Runnable {
 			e.printStackTrace();
 		}
 
-		try {
-			autoID();
-		} catch (IOException e) {
-			e.printStackTrace();
-		} catch (ClassNotFoundException e) {
-			e.printStackTrace();
-		}
+		autoID();
 
 	}
 
-	private void autoID() throws IOException, ClassNotFoundException {
-		// Saludo
+	private void autoID() {
+		//Enviar saludo
 		enviar(serialize(new MensajeID("Hola, soy nuevo")), GROUP_ADDRESS, 5000);
 
+		
 		try {
-
-			// Recibir Saludo
-
-			mSocket.setSoTimeout(6000);
+			mSocket.setSoTimeout(1000);
 			while (!identificado) {
-				DatagramPacket dPacket = recibir();
-				Object objRecibido = null;
+				//Si no se ha identificado se realiza el recibimiento de mensaje
+				recibirRes();
+			}
+		} catch (SocketException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
 
-				if (dPacket != null) {
+	private void recibirRes() throws IOException {
+		try {
+			DatagramPacket dPacket = recibir();
+
+			Object objRecibido = deserialize(dPacket.getData());
+
+			if (objRecibido instanceof MensajeID) {
+				MensajeID msg = (MensajeID) objRecibido;
+				String cont = msg.getContenido();
+				System.out.println("Contenido es:"+cont);
+				
+				if(cont.contains("nuevo")){
+					dPacket = recibir();
 					objRecibido = deserialize(dPacket.getData());
+					
+					msg = (MensajeID) objRecibido;
+					cont = (String) msg.getContenido();
+					System.out.println("Nuevo contenido es:"+cont);
 				}
 
-				if (objRecibido instanceof MensajeID) {
-					if (objRecibido != null) {
-						MensajeID mes = (MensajeID) objRecibido;
-						String mesContenido = mes.getContenido();
-
-						if (mesContenido.contains("Soy:")) {
-							String[] partes = mesContenido.split(":");
-
-							int idLimite = Integer.parseInt(partes[1]);
-							if (idLimite >= id) {
-								id = idLimite + 1;
-							}
-						}
+				if (cont.contains("soy:")) { 				
+					String[] partes = cont.split(":");
+					int idLimite = Integer.parseInt(partes[1]);
+					if (idLimite >= id) {
+						id = idLimite + 1;
 					}
 				}
 			}
-		} catch (Exception e){
-			e.printStackTrace();
-		} //catch (SocketTimeoutException e) {
-		if(id==0){
-			id=1;
+		} catch (SocketTimeoutException e) {
+			if(id==0){
+				id=1;
+			}
 			identificado = true;
 			mSocket.setSoTimeout(0);
 			System.out.println("Mi id es:"+id);
 		}
-		//}
 	}
 
 	private void responderSaludo() {
-		MensajeID mes = new MensajeID("Hola soy:" + id);
-		byte[] info = serialize(mes.getContenido());
+		
+		System.out.println("Mensaje respondido: Soy:"+id);
 
-		enviar(info, GROUP_ADDRESS, 5000);
+		enviar(serialize(new MensajeID("soy:"+id)), GROUP_ADDRESS, 5000);
 	}
 
 	public void enviar(byte[] buffer, String direccionIP, int pt) {
@@ -107,17 +110,11 @@ public class Comunicacion extends Observable implements Runnable {
 		}
 	}
 
-	public DatagramPacket recibir() {
+	public DatagramPacket recibir() throws IOException {
 		byte[] buffer = new byte[1024];
 		DatagramPacket dPacket = new DatagramPacket(buffer, buffer.length);
-
-		try {
-			mSocket.receive(dPacket);
-			return dPacket;
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-		return null;
+		mSocket.receive(dPacket);
+		return dPacket;
 	}
 
 	public byte[] serialize(Object o) {
@@ -155,26 +152,32 @@ public class Comunicacion extends Observable implements Runnable {
 	public void run() {
 		while (life) {
 			if (mSocket != null) {
-				DatagramPacket dPacket = recibir();
+				
+				DatagramPacket dPacket;
+				try {
+					dPacket = recibir();
 
-				if (dPacket != null) {
-					Object objRecibido = deserialize(dPacket.getData());
-
-					if (objRecibido != null) {
-						if (objRecibido instanceof MensajeID) {
-							MensajeID mID = (MensajeID) objRecibido;
-							String contenido = mID.getContenido();
-
-							if (contenido.contains("nuevo")) {
-								responderSaludo();
+					if (dPacket != null) {
+						Object objRecibido = deserialize(dPacket.getData());
+						if (objRecibido != null) {
+							if (objRecibido instanceof MensajeID) {
+								MensajeID mID = (MensajeID) objRecibido;
+								String contenido = mID.getContenido();
+								
+								if (contenido.contains("nuevo")) {
+									responderSaludo();
+								}
 							}
-						}
 
-						setChanged();
-						notifyObservers(objRecibido);
-						clearChanged();
+							setChanged();
+							notifyObservers(objRecibido);
+							clearChanged();
+						}
 					}
-				}
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				} 
 			}
 		}
 	}

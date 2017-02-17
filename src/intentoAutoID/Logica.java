@@ -22,7 +22,7 @@ public class Logica implements Observer {
 		app.noStroke();
 		app.fill(150);
 		app.ellipse(50, 100, 40, 40);
-		app.fill(0);
+		app.fill(255);
 		app.text(conexion.getId(), 50, 100);
 	}
 
