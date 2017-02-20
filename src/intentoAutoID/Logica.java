@@ -21,9 +21,9 @@ public class Logica implements Observer {
 	public void pintar() {
 		app.noStroke();
 		app.fill(150);
-		app.ellipse(50, 100, 40, 40);
+		app.ellipse(100, 100, 40, 40);
 		app.fill(255);
-		app.text(conexion.getId(), 50, 100);
+		app.text(conexion.getId(), 100, 100);
 	}
 
 	@Override

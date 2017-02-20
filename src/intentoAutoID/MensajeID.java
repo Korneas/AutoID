@@ -3,7 +3,7 @@ package intentoAutoID;
 import java.io.Serializable;
 
 public class MensajeID implements Serializable {
-	public static String data;
+	public String data;
 
 	public MensajeID(String data) {
 		this.data = data;
